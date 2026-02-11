@@ -1,9 +1,8 @@
 import os
 import json
 import random
-import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from openai import OpenAI
 
@@ -73,7 +72,7 @@ async def gerar_post(style):
     return response.choices[0].message.content.strip()
 
 # ===== AUTO POST =====
-async def postar(app):
+async def postar(app: Application):
     config = load_config()
     if not config["enabled"]:
         return
@@ -84,7 +83,7 @@ async def postar(app):
             await app.bot.send_message(chat_id=canal, text=f"💖 {texto}")
             print(f"✅ Post enviado para {canal}")
         except Exception as e:
-            print(f"❌ Erro em {canal}:", e)
+            print(f"❌ Erro em {canal}: {e}")
 
 # ===== MENU =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -177,7 +176,7 @@ async def intervalo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"⏰ Intervalo alterado para {horas} horas")
 
 # ===== APP =====
-app = ApplicationBuilder().token(BOT_TOKEN).build()
+app = Application.builder().token(BOT_TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("addcanal", add_canal))
@@ -189,5 +188,5 @@ scheduler = AsyncIOScheduler()
 scheduler.add_job(postar, "interval", hours=3, id="post_job", args=[app])
 scheduler.start()
 
-print("💘 Bot romântico MULTICANAL rodando no Koyeb...")
+print("💘 BOT ROMÂNTICO MULTICANAL RODANDO NO KOYEB...")
 app.run_polling()
