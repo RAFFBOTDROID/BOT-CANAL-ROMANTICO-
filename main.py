@@ -1,6 +1,7 @@
 import os
 import json
 import random
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -16,7 +17,7 @@ CONFIG_FILE = "config.json"
 
 DEFAULT_CONFIG = {
     "channels": [],
-    "interval": 1,
+    "interval": 3,
     "style": "romantico",
     "enabled": True
 }
@@ -41,8 +42,7 @@ PROMPT_STYLES = {
     ],
     "sensual": [
         "Mensagem romântica sensual leve",
-        "Texto apaixonado intenso",
-        "Frase sedutora elegante"
+        "Texto apaixonado intenso"
     ],
     "dark": [
         "Mensagem dark romance intensa",
@@ -110,7 +110,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"📢 Canais:\n{canais}\n\nUse /addcanal @canal")
 
     elif query.data == "interval":
-        await query.edit_message_text(f"⏰ Intervalo atual: {config['interval']}h\nUse /intervalo 1")
+        await query.edit_message_text(f"⏰ Intervalo atual: {config['interval']}h\nUse /intervalo 2")
 
     elif query.data == "style":
         buttons = [
@@ -138,7 +138,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("⏸ Autopost PAUSADO")
 
     elif query.data == "post_now":
-        await query.edit_message_text("⚡ Gerando posts agora...")
+        await query.edit_message_text("⚡ Postando AGORA...")
         await postar(context.application)
         await query.edit_message_text("✅ Posts enviados!")
 
@@ -167,13 +167,17 @@ async def add_canal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ Canal adicionado: {canal}")
 
 async def intervalo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("Use: /intervalo 2")
+        return
+
     horas = int(context.args[0])
     config = load_config()
     config["interval"] = horas
     save_config(config)
 
     scheduler.reschedule_job("post_job", trigger="interval", hours=horas)
-    await update.message.reply_text(f"⏰ Intervalo alterado para {horas}h")
+    await update.message.reply_text(f"⏰ Intervalo alterado para {horas} horas")
 
 # ===== APP =====
 app = Application.builder().token(BOT_TOKEN).build()
@@ -183,10 +187,19 @@ app.add_handler(CommandHandler("addcanal", add_canal))
 app.add_handler(CommandHandler("intervalo", intervalo))
 app.add_handler(CallbackQueryHandler(menu_handler))
 
-# ===== SCHEDULER =====
+# ===== SCHEDULER SAFE =====
 scheduler = AsyncIOScheduler()
-scheduler.add_job(postar, "interval", hours=1, id="post_job", args=[app])
-scheduler.start()
 
-print("💘 BOT ROMÂNTICO MULTICANAL ONLINE NO KOYEB")
-app.run_polling()
+async def iniciar_scheduler():
+    scheduler.add_job(postar, "interval", hours=3, id="post_job", args=[app])
+    scheduler.start()
+
+async def main():
+    await iniciar_scheduler()
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    await asyncio.Event().wait()
+
+if __name__ == "__main__":
+    asyncio.run(main())
