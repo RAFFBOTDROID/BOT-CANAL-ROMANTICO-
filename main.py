@@ -20,7 +20,7 @@ DEFAULT_CONFIG = {
     "interval": 2,
     "style": "romantico",
     "enabled": True,
-    "text_size": "longo"
+    "text_size": "medio"
 }
 
 if not os.path.exists(CONFIG_FILE):
@@ -38,39 +38,31 @@ def save_config(data):
 # ===== PROMPTS IA =====
 PROMPT_STYLES = {
     "romantico": [
-        "Escreva um texto romântico profundo, intenso, emocional, poético e marcante",
-        "Crie uma carta de amor madura, profunda e extremamente sentimental",
-        "Texto de amor longo, apaixonado, emocional e inesquecível"
+        "Escreva um texto romântico profundo, intenso e marcante, com começo, meio e fim"
     ],
     "sensual": [
-        "Escreva um texto sensual intenso, elegante, provocante e emocional",
-        "Mensagem de desejo profunda, quente e envolvente",
-        "Texto sedutor intenso, apaixonado e marcante"
+        "Escreva um texto sensual elegante, intenso e provocante, com começo, meio e fim"
     ],
     "dark": [
-        "Texto dark romance profundo, melancólico, intenso e emocional",
-        "Mensagem de amor intensa com dor, saudade e desejo",
-        "Romance sombrio sentimental e marcante"
+        "Escreva um texto dark romance melancólico, profundo e intenso, com começo, meio e fim"
     ],
     "fofo": [
-        "Texto fofo, doce, emocional e acolhedor",
-        "Mensagem carinhosa longa, terna e cheia de afeto",
-        "Texto romântico leve, doce e reconfortante"
+        "Escreva um texto fofo, doce e emocional, com começo, meio e fim"
     ]
 }
 
-# ===== CONTROLE TAMANHO =====
+# ===== CONTROLE TAMANHO REAL =====
 TEXT_LIMITS = {
     "curto": 140,
-    "medio": 260,
-    "longo": 420,
-    "gigante": 700
+    "medio": 220,
+    "longo": 320,
+    "gigante": 480
 }
 
-# ===== IA GROQ — 1 ESTROFE COESA =====
+# ===== GERAR TEXTO =====
 async def gerar_post(style, size):
     prompt = random.choice(PROMPT_STYLES.get(style, PROMPT_STYLES["romantico"]))
-    max_tokens = TEXT_LIMITS.get(size, 420)
+    char_limit = TEXT_LIMITS.get(size, 220)
 
     try:
         response = client.chat.completions.create(
@@ -79,34 +71,28 @@ async def gerar_post(style, size):
                 {
                     "role": "system",
                     "content": (
-                        "Você escreve UM ÚNICO TEXTO em UMA ÚNICA ESTROFE. "
-                        "O texto deve ser PROFUNDO, INTENSO, ORIGINAL e 100% AUTORAL. "
-                        "NÃO use clichês, NÃO repita frases comuns, NÃO copie estilos prontos. "
-                        "NÃO use listas. NÃO quebre em parágrafos. "
-                        "O texto deve ser COMPLETO, COESO e FINALIZAR a ideia. "
-                        "Nunca corte o texto no meio. Sempre termine com ponto final. "
-                        "Evite frases robóticas. Faça parecer humano, real e emocional."
+                        "Gere UM ÚNICO TEXTO curto, em UMA ÚNICA ESTROFE. "
+                        "O TEXTO DEVE TER começo, meio e fim. "
+                        "Finalize a ideia completamente. "
+                        "Não use clichês repetidos. "
+                        "Não quebre linhas. "
+                        "Parecer humano, intenso e natural."
                     )
                 },
-                {
-                    "role": "user",
-                    "content": (
-                        f"{prompt}. Gere em uma única estrofe, "
-                        f"sem pular linha, com começo, meio e fim, "
-                        f"finalizando o pensamento de forma completa."
-                    )
-                }
+                {"role": "user", "content": prompt}
             ],
-            temperature=0.95,
-            max_tokens=max_tokens
+            temperature=0.9,
+            max_tokens=250
         )
 
         texto = response.choices[0].message.content.strip()
-
-        # LIMPEZA PARA GARANTIR 1 ESTROFE
         texto = texto.replace("\n", " ").replace("  ", " ")
 
-        # GARANTIR FINAL COMPLETO
+        # ===== CORTAR SE PASSAR DO LIMITE =====
+        if len(texto) > char_limit:
+            texto = texto[:char_limit].rsplit(" ", 1)[0] + "."
+
+        # ===== GARANTIR FINAL =====
         if not texto.endswith("."):
             texto += "."
 
@@ -114,7 +100,8 @@ async def gerar_post(style, size):
 
     except Exception as e:
         print("❌ ERRO GROQ:", e)
-        return "⚠️ IA indisponível. Tentando novamente na próxima postagem."
+        return "⚠️ IA temporariamente indisponível."
+
 # ===== POSTAGEM =====
 async def postar(app: Application):
     config = load_config()
@@ -143,7 +130,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     await update.message.reply_text(
-        "💘 BOT ROMÂNTICO IA ULTRA\n\nTextos 100% gerados por IA",
+        "💘 BOT ROMÂNTICO IA\n\nTextos curtos, intensos e completos",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -178,16 +165,14 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("📏 Escolha o tamanho:", reply_markup=InlineKeyboardMarkup(buttons))
 
     elif query.data.startswith("setstyle_"):
-        style = query.data.replace("setstyle_", "")
-        config["style"] = style
+        config["style"] = query.data.replace("setstyle_", "")
         save_config(config)
-        await query.edit_message_text(f"✅ Estilo alterado para {style}")
+        await query.edit_message_text("✅ Estilo atualizado")
 
     elif query.data.startswith("setsize_"):
-        size = query.data.replace("setsize_", "")
-        config["text_size"] = size
+        config["text_size"] = query.data.replace("setsize_", "")
         save_config(config)
-        await query.edit_message_text(f"✅ Tamanho alterado para {size}")
+        await query.edit_message_text("✅ Tamanho atualizado")
 
     elif query.data == "enable":
         config["enabled"] = True
@@ -200,9 +185,9 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("⏸ Autopost PAUSADO")
 
     elif query.data == "post_now":
-        await query.edit_message_text("⚡ Gerando e postando AGORA...")
+        await query.edit_message_text("⚡ Gerando agora...")
         await postar(context.application)
-        await query.edit_message_text("✅ Posts enviados!")
+        await query.edit_message_text("✅ Post enviado")
 
     elif query.data == "status":
         status = "🟢 ATIVO" if config["enabled"] else "🔴 PAUSADO"
@@ -230,17 +215,13 @@ async def add_canal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ Canal adicionado: {canal}")
 
 async def intervalo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Use: /intervalo 2")
-        return
-
     horas = int(context.args[0])
     config = load_config()
     config["interval"] = horas
     save_config(config)
 
     scheduler.reschedule_job("post_job", trigger="interval", hours=horas)
-    await update.message.reply_text(f"⏰ Intervalo alterado para {horas} horas")
+    await update.message.reply_text(f"⏰ Intervalo alterado para {horas}h")
 
 # ===== APP =====
 app = Application.builder().token(BOT_TOKEN).build()
@@ -259,10 +240,7 @@ async def iniciar_scheduler():
 
 async def main():
     await iniciar_scheduler()
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-    await asyncio.Event().wait()
+    await app.run_polling()
 
 if __name__ == "__main__":
     asyncio.run(main())
