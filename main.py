@@ -72,49 +72,49 @@ async def gerar_post(style, size):
     prompt = random.choice(PROMPT_STYLES.get(style, PROMPT_STYLES["romantico"]))
     max_tokens = TEXT_LIMITS.get(size, 420)
 
-    MODELS = [
-        "mixtral-8x7b-32768",
-        "llama-3.1-8b-instant",
-        "gemma2-9b-it"
-    ]
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Você escreve UM ÚNICO TEXTO em UMA ÚNICA ESTROFE. "
+                        "O texto deve ser PROFUNDO, INTENSO, ORIGINAL e 100% AUTORAL. "
+                        "NÃO use clichês, NÃO repita frases comuns, NÃO copie estilos prontos. "
+                        "NÃO use listas. NÃO quebre em parágrafos. "
+                        "O texto deve ser COMPLETO, COESO e FINALIZAR a ideia. "
+                        "Nunca corte o texto no meio. Sempre termine com ponto final. "
+                        "Evite frases robóticas. Faça parecer humano, real e emocional."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"{prompt}. Gere em uma única estrofe, "
+                        f"sem pular linha, com começo, meio e fim, "
+                        f"finalizando o pensamento de forma completa."
+                    )
+                }
+            ],
+            temperature=0.95,
+            max_tokens=max_tokens
+        )
 
-    for model in MODELS:
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "Escreva UM ÚNICO TEXTO EM UMA ÚNICA ESTROFE, "
-                            "sem dividir em parágrafos. "
-                            "O texto deve ser COESO, profundo, intenso, emocional, "
-                            "poético e marcante do começo ao fim. "
-                            "Não escreva frases soltas. "
-                            "Não use listas. "
-                            "Não use clichês genéricos. "
-                            "O texto deve parecer um pensamento real, contínuo, "
-                            "como um desabafo emocional profundo."
-                        )
-                    },
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.96,
-                max_tokens=max_tokens
-            )
+        texto = response.choices[0].message.content.strip()
 
-            texto = response.choices[0].message.content.strip()
+        # LIMPEZA PARA GARANTIR 1 ESTROFE
+        texto = texto.replace("\n", " ").replace("  ", " ")
 
-            # REMOVE QUEBRAS DUPLAS — GARANTE 1 ESTROFE
-            texto = texto.replace("\n\n", "\n")
-            texto = texto.strip()
+        # GARANTIR FINAL COMPLETO
+        if not texto.endswith("."):
+            texto += "."
 
-            return texto
+        return texto
 
-        except Exception as e:
-            print(f"❌ ERRO GROQ ({model}):", e)
-
-    return "⚠️ IA indisponível no momento, tentando novamente na próxima postagem."
+    except Exception as e:
+        print("❌ ERRO GROQ:", e)
+        return "⚠️ IA indisponível. Tentando novamente na próxima postagem."
 # ===== POSTAGEM =====
 async def postar(app: Application):
     config = load_config()
