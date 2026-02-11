@@ -16,7 +16,7 @@ CONFIG_FILE = "config.json"
 
 DEFAULT_CONFIG = {
     "channels": [],
-    "interval": 3,
+    "interval": 1,
     "style": "romantico",
     "enabled": True
 }
@@ -46,12 +46,10 @@ PROMPT_STYLES = {
     ],
     "dark": [
         "Mensagem dark romance intensa",
-        "Frase romântica melancólica",
-        "Texto amoroso sombrio"
+        "Frase romântica melancólica"
     ],
     "fofo": [
         "Mensagem fofa sobre amor",
-        "Frase doce romântica",
         "Texto carinhoso leve"
     ]
 }
@@ -71,7 +69,7 @@ async def gerar_post(style):
 
     return response.choices[0].message.content.strip()
 
-# ===== AUTO POST =====
+# ===== POST =====
 async def postar(app: Application):
     config = load_config()
     if not config["enabled"]:
@@ -112,7 +110,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"📢 Canais:\n{canais}\n\nUse /addcanal @canal")
 
     elif query.data == "interval":
-        await query.edit_message_text(f"⏰ Intervalo atual: {config['interval']}h\nUse /intervalo 2")
+        await query.edit_message_text(f"⏰ Intervalo atual: {config['interval']}h\nUse /intervalo 1")
 
     elif query.data == "style":
         buttons = [
@@ -142,7 +140,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "post_now":
         await query.edit_message_text("⚡ Gerando posts agora...")
         await postar(context.application)
-        await query.edit_message_text("✅ Posts enviados para todos os canais!")
+        await query.edit_message_text("✅ Posts enviados!")
 
     elif query.data == "status":
         status = "🟢 ATIVO" if config["enabled"] else "🔴 PAUSADO"
@@ -169,22 +167,13 @@ async def add_canal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ Canal adicionado: {canal}")
 
 async def intervalo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Use: /intervalo 2")
-        return
-
     horas = int(context.args[0])
     config = load_config()
     config["interval"] = horas
     save_config(config)
 
     scheduler.reschedule_job("post_job", trigger="interval", hours=horas)
-    await update.message.reply_text(f"⏰ Intervalo alterado para {horas} horas")
-
-async def postar_agora(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⚡ Gerando post agora...")
-    await postar(context.application)
-    await update.message.reply_text("✅ Post enviado em todos os canais!")
+    await update.message.reply_text(f"⏰ Intervalo alterado para {horas}h")
 
 # ===== APP =====
 app = Application.builder().token(BOT_TOKEN).build()
@@ -192,13 +181,12 @@ app = Application.builder().token(BOT_TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("addcanal", add_canal))
 app.add_handler(CommandHandler("intervalo", intervalo))
-app.add_handler(CommandHandler("postaragora", postar_agora))
 app.add_handler(CallbackQueryHandler(menu_handler))
 
 # ===== SCHEDULER =====
 scheduler = AsyncIOScheduler()
-scheduler.add_job(postar, "interval", hours=3, id="post_job", args=[app])
+scheduler.add_job(postar, "interval", hours=1, id="post_job", args=[app])
 scheduler.start()
 
-print("💘 BOT ROMÂNTICO MULTICANAL RODANDO NO KOYEB...")
+print("💘 BOT ROMÂNTICO MULTICANAL ONLINE NO KOYEB")
 app.run_polling()
