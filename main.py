@@ -67,14 +67,15 @@ TEXT_LIMITS = {
     "gigante": 700
 }
 
-# ===== IA GROQ — SEM FRASES LOCAIS =====
+# ===== IA GROQ — SEM FRASES LOCAIS — MODELOS ATIVOS =====
 async def gerar_post(style, size):
     prompt = random.choice(PROMPT_STYLES.get(style, PROMPT_STYLES["romantico"]))
     max_tokens = TEXT_LIMITS.get(size, 420)
 
     MODELS_PRIORITY = [
-        "llama-3.1-70b-versatile",
-        "llama-3.1-8b-instant"
+        "mixtral-8x7b-32768",
+        "llama-3.1-8b-instant",
+        "gemma2-9b-it"
     ]
 
     for model in MODELS_PRIORITY:
@@ -85,16 +86,18 @@ async def gerar_post(style, size):
                     {
                         "role": "system",
                         "content": (
-                            "Você escreve textos 100% ORIGINAIS, profundos, "
-                            "emocionantes, poéticos e marcantes. "
-                            "NUNCA use frases prontas, clichês repetidos ou textos comuns. "
-                            "Cada resposta deve parecer uma carta real, intensa e única. "
-                            "Nunca escreva textos genéricos ou robóticos."
+                            "Você escreve textos 100% ORIGINAIS, PROFUNDOS, "
+                            "emocionantes, poéticos, intensos e marcantes. "
+                            "Escreva como uma CARTA DE AMOR REAL, madura, "
+                            "com saudade, desejo, emoção e conexão humana. "
+                            "NUNCA escreva frases curtas. "
+                            "NUNCA use clichês repetitivos. "
+                            "O texto deve ser forte, longo, envolvente e único."
                         )
                     },
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.97,
+                temperature=0.98,
                 max_tokens=max_tokens
             )
 
