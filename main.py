@@ -82,8 +82,8 @@ async def gerar_post(style, size):
                         "NÃO quebre em parágrafos. "
                         "NÃO corte frases no meio. "
                         "Finalize sempre com uma frase completa. "
-                        "Sem clichês repetidos, sem frases genéricas, sem parecer robô. "
-                        "Texto marcante, natural e humano."
+                        "Texto natural, humano e marcante. "
+                        "Sem clichês, sem frases prontas."
                     )
                 },
                 {"role": "user", "content": prompt}
@@ -93,7 +93,12 @@ async def gerar_post(style, size):
         )
 
         texto = response.choices[0].message.content.strip()
-        return texto.replace("\n", " ")
+        texto = texto.replace("\n", " ").strip()
+
+        if not texto.endswith((".", "!", "?")):
+            texto += "."
+
+        return texto
 
     except Exception as e:
         print("❌ ERRO GROQ:", e)
@@ -155,7 +160,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     await update.message.reply_text(
-        "💘 BOT IA — TEXTO + IMAGEM\n\n100% IA automática",
+        "💘 BOT IA — TEXTO + IMAGEM\n\n100% automático",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
