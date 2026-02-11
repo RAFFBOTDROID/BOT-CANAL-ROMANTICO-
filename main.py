@@ -34,47 +34,31 @@ def save_config(data):
     with open(CONFIG_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
+# ===== PROMPTS IA =====
 PROMPT_STYLES = {
     "romantico": [
-        "Escreva uma frase romântica profunda",
-        "Crie uma mensagem apaixonada",
-        "Poema romântico curto e intenso"
+        "Escreva um texto romântico profundo, longo, emocional, intenso e poético, como uma carta de amor real",
+        "Crie uma mensagem de amor madura, profunda e sentimental, cheia de saudade e paixão",
+        "Escreva um texto romântico marcante que toque o coração intensamente"
     ],
     "sensual": [
-        "Mensagem romântica sensual elegante",
-        "Texto sedutor apaixonado"
+        "Escreva um texto sensual intenso, elegante, provocante e emocional",
+        "Crie uma mensagem de desejo profunda, quente, romântica e envolvente",
+        "Texto sedutor intenso, apaixonado e marcante"
     ],
     "dark": [
-        "Mensagem dark romance intensa",
-        "Frase romântica melancólica"
+        "Escreva um texto dark romance profundo, melancólico, intenso e emocional",
+        "Crie uma mensagem de amor intenso com dor, saudade e desejo profundo",
+        "Texto romântico sombrio, sentimental e marcante"
     ],
     "fofo": [
-        "Mensagem fofa sobre amor",
-        "Texto doce e carinhoso"
+        "Escreva um texto fofo, doce, emocional e acolhedor sobre amor",
+        "Crie uma mensagem carinhosa longa, terna e cheia de afeto",
+        "Texto romântico leve, fofo e reconfortante"
     ]
 }
 
-FRASES_LOCAL = {
-    "romantico": [
-        "O amor verdadeiro mora nos detalhes 💖",
-        "Você é o poema do meu coração 💕",
-        "Te amar é minha parte favorita da vida 💘"
-    ],
-    "sensual": [
-        "Seu olhar acende desejos 🔥",
-        "Você é tentação em forma de gente 😈"
-    ],
-    "dark": [
-        "O amor também vive nas sombras 🖤",
-        "Mesmo no caos, eu escolho você 🌑"
-    ],
-    "fofo": [
-        "Você é meu sorriso favorito 🥰",
-        "Meu coração fica leve pensando em você 💗"
-    ]
-}
-
-# ===== IA GROQ =====
+# ===== IA GROQ — SEM FRASES LOCAIS =====
 async def gerar_post(style):
     prompt = random.choice(PROMPT_STYLES.get(style, PROMPT_STYLES["romantico"]))
 
@@ -82,17 +66,28 @@ async def gerar_post(style):
         response = client.chat.completions.create(
             model="llama3-70b-8192",
             messages=[
-                {"role": "system", "content": "Você cria mensagens românticas bonitas, naturais e envolventes."},
+                {
+                    "role": "system",
+                    "content": (
+                        "Você escreve textos românticos PROFUNDOS, LONGOS, "
+                        "emocionantes, intensos, poéticos e marcantes. "
+                        "O texto deve parecer uma carta de amor real, "
+                        "cheia de sentimento, saudade, desejo e conexão emocional. "
+                        "Nunca escreva frases curtas ou simples. "
+                        "Sempre escreva textos longos e impactantes."
+                    )
+                },
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=120
+            temperature=0.97,
+            max_tokens=420
         )
 
         return response.choices[0].message.content.strip()
 
-    except Exception:
-        print("⚠️ GROQ indisponível — usando frases locais")
-        return random.choice(FRASES_LOCAL.get(style, FRASES_LOCAL["romantico"]))
+    except Exception as e:
+        print("❌ ERRO GROQ:", e)
+        return "⚠️ IA temporariamente indisponível. Tentando novamente na próxima postagem."
 
 # ===== POSTAGEM =====
 async def postar(app: Application):
@@ -121,7 +116,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     await update.message.reply_text(
-        "💘 BOT ROMÂNTICO MULTICANAL",
+        "💘 BOT ROMÂNTICO IA PROFUNDA\n\nTextos 100% gerados por IA",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -163,7 +158,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("⏸ Autopost PAUSADO")
 
     elif query.data == "post_now":
-        await query.edit_message_text("⚡ Postando AGORA...")
+        await query.edit_message_text("⚡ Gerando e postando AGORA...")
         await postar(context.application)
         await query.edit_message_text("✅ Posts enviados!")
 
@@ -212,7 +207,7 @@ app.add_handler(CommandHandler("addcanal", add_canal))
 app.add_handler(CommandHandler("intervalo", intervalo))
 app.add_handler(CallbackQueryHandler(menu_handler))
 
-# ===== SCHEDULER SAFE =====
+# ===== SCHEDULER =====
 scheduler = AsyncIOScheduler()
 
 async def iniciar_scheduler():
