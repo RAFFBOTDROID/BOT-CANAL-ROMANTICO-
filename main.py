@@ -64,31 +64,43 @@ async def gerar_post(style):
 
     try:
         response = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama-3.1-70b-versatile",
             messages=[
                 {
                     "role": "system",
                     "content": (
-                        "Você escreve textos românticos PROFUNDOS, LONGOS, "
+                        "Você escreve textos românticos EXTREMAMENTE PROFUNDOS, LONGOS, "
                         "emocionantes, intensos, poéticos e marcantes. "
-                        "O texto deve parecer uma carta de amor real, "
-                        "cheia de sentimento, saudade, desejo e conexão emocional. "
-                        "Nunca escreva frases curtas ou simples. "
-                        "Sempre escreva textos longos e impactantes."
+                        "O texto deve parecer uma carta de amor real, madura, "
+                        "cheia de saudade, desejo, conexão emocional e impacto. "
+                        "Nunca escreva frases curtas. Sempre produza textos longos."
                     )
                 },
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.97,
-            max_tokens=420
+            temperature=0.98,
+            max_tokens=480
         )
 
         return response.choices[0].message.content.strip()
 
     except Exception as e:
         print("❌ ERRO GROQ:", e)
-        return "⚠️ IA temporariamente indisponível. Tentando novamente na próxima postagem."
 
+        # fallback automático para modelo menor
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[
+                    {"role": "system", "content": "Escreva um texto romântico profundo, longo e emocional."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.95,
+                max_tokens=400
+            )
+            return response.choices[0].message.content.strip()
+        except:
+            return "⚠️ IA temporariamente indisponível. Tentando novamente em instantes."
 # ===== POSTAGEM =====
 async def postar(app: Application):
     config = load_config()
