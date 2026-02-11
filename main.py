@@ -2,6 +2,7 @@ import os
 import json
 import random
 import asyncio
+import urllib.parse
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -20,7 +21,7 @@ DEFAULT_CONFIG = {
     "interval": 2,
     "style": "romantico",
     "enabled": True,
-    "text_size": "longo"
+    "text_size": "medio"
 }
 
 if not os.path.exists(CONFIG_FILE):
@@ -35,42 +36,39 @@ def save_config(data):
     with open(CONFIG_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-# ===== PROMPTS IA =====
+# ===== PROMPTS =====
 PROMPT_STYLES = {
     "romantico": [
-        "Escreva um texto romântico profundo, intenso, emocional, poético e marcante",
-        "Crie uma carta de amor madura, profunda e extremamente sentimental",
-        "Texto de amor longo, apaixonado, emocional e inesquecível"
+        "Escreva um texto romântico profundo, intenso, emocional e poético",
+        "Crie uma carta de amor madura, profunda e marcante",
+        "Texto de amor intenso, emocional e inesquecível"
     ],
     "sensual": [
-        "Escreva um texto sensual intenso, elegante, provocante e emocional",
-        "Mensagem de desejo profunda, quente e envolvente",
-        "Texto sedutor intenso, apaixonado e marcante"
+        "Texto sensual elegante, provocante e emocional",
+        "Mensagem de desejo intensa e envolvente"
     ],
     "dark": [
-        "Texto dark romance profundo, melancólico, intenso e emocional",
-        "Mensagem de amor intensa com dor, saudade e desejo",
-        "Romance sombrio sentimental e marcante"
+        "Texto dark romance profundo, melancólico e intenso",
+        "Mensagem sombria, sentimental e marcante"
     ],
     "fofo": [
         "Texto fofo, doce, emocional e acolhedor",
-        "Mensagem carinhosa longa, terna e cheia de afeto",
-        "Texto romântico leve, doce e reconfortante"
+        "Mensagem carinhosa terna e leve"
     ]
 }
 
-# ===== CONTROLE TAMANHO =====
+# ===== TAMANHO =====
 TEXT_LIMITS = {
-    "curto": 140,
-    "medio": 260,
-    "longo": 420,
-    "gigante": 700
+    "curto": 120,
+    "medio": 240,
+    "longo": 380,
+    "gigante": 650
 }
 
-# ===== IA GROQ — 1 ESTROFE COESA =====
+# ===== GERAR TEXTO IA =====
 async def gerar_post(style, size):
     prompt = random.choice(PROMPT_STYLES.get(style, PROMPT_STYLES["romantico"]))
-    max_tokens = TEXT_LIMITS.get(size, 420)
+    max_tokens = TEXT_LIMITS.get(size, 240)
 
     try:
         response = client.chat.completions.create(
@@ -79,42 +77,46 @@ async def gerar_post(style, size):
                 {
                     "role": "system",
                     "content": (
-                        "Você escreve UM ÚNICO TEXTO em UMA ÚNICA ESTROFE. "
-                        "O texto deve ser PROFUNDO, INTENSO, ORIGINAL e 100% AUTORAL. "
-                        "NÃO use clichês, NÃO repita frases comuns, NÃO copie estilos prontos. "
-                        "NÃO use listas. NÃO quebre em parágrafos. "
-                        "O texto deve ser COMPLETO, COESO e FINALIZAR a ideia. "
-                        "Nunca corte o texto no meio. Sempre termine com ponto final. "
-                        "Evite frases robóticas. Faça parecer humano, real e emocional."
+                        "Escreva um texto 100% ORIGINAL, profundo, emocional, intenso e poético. "
+                        "O TEXTO DEVE SER UMA ÚNICA ESTROFE COESA. "
+                        "NÃO quebre em parágrafos. "
+                        "NÃO corte frases no meio. "
+                        "Finalize sempre com uma frase completa. "
+                        "Sem clichês repetidos, sem frases genéricas, sem parecer robô. "
+                        "Texto marcante, natural e humano."
                     )
                 },
-                {
-                    "role": "user",
-                    "content": (
-                        f"{prompt}. Gere em uma única estrofe, "
-                        f"sem pular linha, com começo, meio e fim, "
-                        f"finalizando o pensamento de forma completa."
-                    )
-                }
+                {"role": "user", "content": prompt}
             ],
             temperature=0.95,
             max_tokens=max_tokens
         )
 
         texto = response.choices[0].message.content.strip()
-
-        # LIMPEZA PARA GARANTIR 1 ESTROFE
-        texto = texto.replace("\n", " ").replace("  ", " ")
-
-        # GARANTIR FINAL COMPLETO
-        if not texto.endswith("."):
-            texto += "."
-
-        return texto
+        return texto.replace("\n", " ")
 
     except Exception as e:
         print("❌ ERRO GROQ:", e)
-        return "⚠️ IA indisponível. Tentando novamente na próxima postagem."
+        return "⚠️ IA temporariamente indisponível."
+
+# ===== GERAR IMAGEM IA =====
+async def gerar_imagem(texto):
+    try:
+        prompt_visual = (
+            "arte digital cinematográfica, romântica, emocional, "
+            "iluminação suave, estética poética, casal, amor profundo, "
+            "sentimento intenso, estilo artístico realista. "
+            f"Tema: {texto[:160]}"
+        )
+
+        encoded = urllib.parse.quote(prompt_visual)
+        url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&seed={random.randint(1,99999)}"
+
+        return url
+    except Exception as e:
+        print("❌ ERRO IMAGEM:", e)
+        return None
+
 # ===== POSTAGEM =====
 async def postar(app: Application):
     config = load_config()
@@ -124,8 +126,19 @@ async def postar(app: Application):
     for canal in config["channels"]:
         try:
             texto = await gerar_post(config["style"], config["text_size"])
-            await app.bot.send_message(chat_id=canal, text=f"💖 {texto}")
+            imagem = await gerar_imagem(texto)
+
+            if imagem:
+                await app.bot.send_photo(
+                    chat_id=canal,
+                    photo=imagem,
+                    caption=f"💖 {texto}"
+                )
+            else:
+                await app.bot.send_message(chat_id=canal, text=f"💖 {texto}")
+
             print(f"✅ Post enviado para {canal}")
+
         except Exception as e:
             print(f"❌ Erro em {canal}: {e}")
 
@@ -133,7 +146,6 @@ async def postar(app: Application):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📢 Canais", callback_data="channels")],
-        [InlineKeyboardButton("⏰ Intervalo", callback_data="interval")],
         [InlineKeyboardButton("🎨 Estilo", callback_data="style")],
         [InlineKeyboardButton("📏 Tamanho Texto", callback_data="size")],
         [InlineKeyboardButton("⚡ Postar AGORA", callback_data="post_now")],
@@ -143,7 +155,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     await update.message.reply_text(
-        "💘 BOT ROMÂNTICO IA ULTRA\n\nTextos 100% gerados por IA",
+        "💘 BOT IA — TEXTO + IMAGEM\n\n100% IA automática",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -155,9 +167,6 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "channels":
         canais = "\n".join(config["channels"]) if config["channels"] else "Nenhum canal"
         await query.edit_message_text(f"📢 Canais:\n{canais}\n\nUse /addcanal @canal")
-
-    elif query.data == "interval":
-        await query.edit_message_text(f"⏰ Intervalo: {config['interval']}h\nUse /intervalo 2")
 
     elif query.data == "style":
         buttons = [
@@ -209,7 +218,6 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
             f"📊 STATUS\n\n"
             f"Canais: {len(config['channels'])}\n"
-            f"Intervalo: {config['interval']}h\n"
             f"Estilo: {config['style']}\n"
             f"Tamanho: {config['text_size']}\n"
             f"Status: {status}"
@@ -229,25 +237,11 @@ async def add_canal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_config(config)
         await update.message.reply_text(f"✅ Canal adicionado: {canal}")
 
-async def intervalo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Use: /intervalo 2")
-        return
-
-    horas = int(context.args[0])
-    config = load_config()
-    config["interval"] = horas
-    save_config(config)
-
-    scheduler.reschedule_job("post_job", trigger="interval", hours=horas)
-    await update.message.reply_text(f"⏰ Intervalo alterado para {horas} horas")
-
 # ===== APP =====
 app = Application.builder().token(BOT_TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("addcanal", add_canal))
-app.add_handler(CommandHandler("intervalo", intervalo))
 app.add_handler(CallbackQueryHandler(menu_handler))
 
 # ===== SCHEDULER =====
@@ -261,7 +255,6 @@ async def main():
     await iniciar_scheduler()
     await app.initialize()
     await app.start()
-    await app.updater.start_polling()
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
