@@ -67,18 +67,18 @@ TEXT_LIMITS = {
     "gigante": 700
 }
 
-# ===== IA GROQ — SEM FRASES LOCAIS — MODELOS ATIVOS =====
+# ===== IA GROQ — 1 ESTROFE / ATÉ 5 LINHAS =====
 async def gerar_post(style, size):
     prompt = random.choice(PROMPT_STYLES.get(style, PROMPT_STYLES["romantico"]))
-    max_tokens = TEXT_LIMITS.get(size, 420)
+    max_tokens = TEXT_LIMITS.get(size, 260)
 
-    MODELS_PRIORITY = [
+    MODELS = [
         "mixtral-8x7b-32768",
         "llama-3.1-8b-instant",
         "gemma2-9b-it"
     ]
 
-    for model in MODELS_PRIORITY:
+    for model in MODELS:
         try:
             response = client.chat.completions.create(
                 model=model,
@@ -86,27 +86,35 @@ async def gerar_post(style, size):
                     {
                         "role": "system",
                         "content": (
-                            "Você escreve textos 100% ORIGINAIS, PROFUNDOS, "
-                            "emocionantes, poéticos, intensos e marcantes. "
-                            "Escreva como uma CARTA DE AMOR REAL, madura, "
-                            "com saudade, desejo, emoção e conexão humana. "
-                            "NUNCA escreva frases curtas. "
-                            "NUNCA use clichês repetitivos. "
-                            "O texto deve ser forte, longo, envolvente e único."
+                            "Escreva UM ÚNICO TEXTO em APENAS UMA ESTROFE, "
+                            "com NO MÁXIMO 5 LINHAS. "
+                            "O texto deve ser UMA FRASE COMPLETA, profunda, intensa, "
+                            "romântica, emocional e poética. "
+                            "Não use parágrafos separados. "
+                            "Não escreva listas. "
+                            "Não use clichês genéricos. "
+                            "O texto deve parecer um pensamento profundo e real."
                         )
                     },
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.98,
+                temperature=0.96,
                 max_tokens=max_tokens
             )
 
-            return response.choices[0].message.content.strip()
+            texto = response.choices[0].message.content.strip()
+
+            # NORMALIZA LINHAS — GARANTE NO MÁXIMO 5
+            linhas = texto.splitlines()
+            linhas = [l.strip() for l in linhas if l.strip()]
+            texto = "\n".join(linhas[:5])
+
+            return texto
 
         except Exception as e:
             print(f"❌ ERRO GROQ ({model}):", e)
 
-    return "⚠️ IA indisponível no momento. Tentando novamente na próxima postagem."
+    return "⚠️ IA indisponível no momento, tentando novamente na próxima postagem."
 
 # ===== POSTAGEM =====
 async def postar(app: Application):
