@@ -67,10 +67,10 @@ TEXT_LIMITS = {
     "gigante": 700
 }
 
-# ===== IA GROQ — 1 ESTROFE / ATÉ 5 LINHAS =====
+# ===== IA GROQ — 1 ESTROFE COESA =====
 async def gerar_post(style, size):
     prompt = random.choice(PROMPT_STYLES.get(style, PROMPT_STYLES["romantico"]))
-    max_tokens = TEXT_LIMITS.get(size, 260)
+    max_tokens = TEXT_LIMITS.get(size, 420)
 
     MODELS = [
         "mixtral-8x7b-32768",
@@ -86,14 +86,15 @@ async def gerar_post(style, size):
                     {
                         "role": "system",
                         "content": (
-                            "Escreva UM ÚNICO TEXTO em APENAS UMA ESTROFE, "
-                            "com NO MÁXIMO 5 LINHAS. "
-                            "O texto deve ser UMA FRASE COMPLETA, profunda, intensa, "
-                            "romântica, emocional e poética. "
-                            "Não use parágrafos separados. "
-                            "Não escreva listas. "
+                            "Escreva UM ÚNICO TEXTO EM UMA ÚNICA ESTROFE, "
+                            "sem dividir em parágrafos. "
+                            "O texto deve ser COESO, profundo, intenso, emocional, "
+                            "poético e marcante do começo ao fim. "
+                            "Não escreva frases soltas. "
+                            "Não use listas. "
                             "Não use clichês genéricos. "
-                            "O texto deve parecer um pensamento profundo e real."
+                            "O texto deve parecer um pensamento real, contínuo, "
+                            "como um desabafo emocional profundo."
                         )
                     },
                     {"role": "user", "content": prompt}
@@ -104,10 +105,9 @@ async def gerar_post(style, size):
 
             texto = response.choices[0].message.content.strip()
 
-            # NORMALIZA LINHAS — GARANTE NO MÁXIMO 5
-            linhas = texto.splitlines()
-            linhas = [l.strip() for l in linhas if l.strip()]
-            texto = "\n".join(linhas[:5])
+            # REMOVE QUEBRAS DUPLAS — GARANTE 1 ESTROFE
+            texto = texto.replace("\n\n", "\n")
+            texto = texto.strip()
 
             return texto
 
@@ -115,7 +115,6 @@ async def gerar_post(style, size):
             print(f"❌ ERRO GROQ ({model}):", e)
 
     return "⚠️ IA indisponível no momento, tentando novamente na próxima postagem."
-
 # ===== POSTAGEM =====
 async def postar(app: Application):
     config = load_config()
