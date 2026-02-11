@@ -19,7 +19,8 @@ DEFAULT_CONFIG = {
     "channels": [],
     "interval": 2,
     "style": "romantico",
-    "enabled": True
+    "enabled": True,
+    "text_size": "longo"
 }
 
 if not os.path.exists(CONFIG_FILE):
@@ -37,70 +38,66 @@ def save_config(data):
 # ===== PROMPTS IA =====
 PROMPT_STYLES = {
     "romantico": [
-        "Escreva um texto romântico profundo, longo, emocional, intenso e poético, como uma carta de amor real",
-        "Crie uma mensagem de amor madura, profunda e sentimental, cheia de saudade e paixão",
-        "Escreva um texto romântico marcante que toque o coração intensamente"
+        "Escreva um texto romântico profundo, intenso, emocional, poético e marcante",
+        "Crie uma carta de amor madura, profunda e extremamente sentimental",
+        "Texto de amor longo, apaixonado, emocional e inesquecível"
     ],
     "sensual": [
         "Escreva um texto sensual intenso, elegante, provocante e emocional",
-        "Crie uma mensagem de desejo profunda, quente, romântica e envolvente",
+        "Mensagem de desejo profunda, quente e envolvente",
         "Texto sedutor intenso, apaixonado e marcante"
     ],
     "dark": [
-        "Escreva um texto dark romance profundo, melancólico, intenso e emocional",
-        "Crie uma mensagem de amor intenso com dor, saudade e desejo profundo",
-        "Texto romântico sombrio, sentimental e marcante"
+        "Texto dark romance profundo, melancólico, intenso e emocional",
+        "Mensagem de amor intensa com dor, saudade e desejo",
+        "Romance sombrio sentimental e marcante"
     ],
     "fofo": [
-        "Escreva um texto fofo, doce, emocional e acolhedor sobre amor",
-        "Crie uma mensagem carinhosa longa, terna e cheia de afeto",
-        "Texto romântico leve, fofo e reconfortante"
+        "Texto fofo, doce, emocional e acolhedor",
+        "Mensagem carinhosa longa, terna e cheia de afeto",
+        "Texto romântico leve, doce e reconfortante"
     ]
 }
 
+# ===== CONTROLE TAMANHO =====
+TEXT_LIMITS = {
+    "curto": 140,
+    "medio": 260,
+    "longo": 420,
+    "gigante": 700
+}
+
 # ===== IA GROQ — SEM FRASES LOCAIS =====
-async def gerar_post(style):
+async def gerar_post(style, size):
     prompt = random.choice(PROMPT_STYLES.get(style, PROMPT_STYLES["romantico"]))
+    max_tokens = TEXT_LIMITS.get(size, 420)
 
     try:
         response = client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
+            model="llama3-70b-8192",
             messages=[
                 {
                     "role": "system",
                     "content": (
-                        "Você escreve textos românticos EXTREMAMENTE PROFUNDOS, LONGOS, "
-                        "emocionantes, intensos, poéticos e marcantes. "
-                        "O texto deve parecer uma carta de amor real, madura, "
-                        "cheia de saudade, desejo, conexão emocional e impacto. "
-                        "Nunca escreva frases curtas. Sempre produza textos longos."
+                        "Você escreve textos 100% ORIGINAIS, profundos, "
+                        "emocionantes, poéticos e marcantes. "
+                        "NUNCA use frases prontas, clichês repetidos ou textos comuns. "
+                        "Cada resposta deve parecer uma carta real, intensa e única. "
+                        "Nunca escreva textos genéricos ou robóticos."
                     )
                 },
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.98,
-            max_tokens=480
+            temperature=0.97,
+            max_tokens=max_tokens
         )
 
         return response.choices[0].message.content.strip()
 
     except Exception as e:
         print("❌ ERRO GROQ:", e)
+        return "⚠️ IA indisponível. Tentando novamente na próxima postagem."
 
-        # fallback automático para modelo menor
-        try:
-            response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[
-                    {"role": "system", "content": "Escreva um texto romântico profundo, longo e emocional."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.95,
-                max_tokens=400
-            )
-            return response.choices[0].message.content.strip()
-        except:
-            return "⚠️ IA temporariamente indisponível. Tentando novamente em instantes."
 # ===== POSTAGEM =====
 async def postar(app: Application):
     config = load_config()
@@ -109,7 +106,7 @@ async def postar(app: Application):
 
     for canal in config["channels"]:
         try:
-            texto = await gerar_post(config["style"])
+            texto = await gerar_post(config["style"], config["text_size"])
             await app.bot.send_message(chat_id=canal, text=f"💖 {texto}")
             print(f"✅ Post enviado para {canal}")
         except Exception as e:
@@ -121,6 +118,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📢 Canais", callback_data="channels")],
         [InlineKeyboardButton("⏰ Intervalo", callback_data="interval")],
         [InlineKeyboardButton("🎨 Estilo", callback_data="style")],
+        [InlineKeyboardButton("📏 Tamanho Texto", callback_data="size")],
         [InlineKeyboardButton("⚡ Postar AGORA", callback_data="post_now")],
         [InlineKeyboardButton("▶️ Ligar", callback_data="enable")],
         [InlineKeyboardButton("⏸ Pausar", callback_data="disable")],
@@ -128,7 +126,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     await update.message.reply_text(
-        "💘 BOT ROMÂNTICO IA PROFUNDA\n\nTextos 100% gerados por IA",
+        "💘 BOT ROMÂNTICO IA ULTRA\n\nTextos 100% gerados por IA",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -153,11 +151,26 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         await query.edit_message_text("🎨 Escolha o estilo:", reply_markup=InlineKeyboardMarkup(buttons))
 
+    elif query.data == "size":
+        buttons = [
+            [InlineKeyboardButton("✏️ Curto", callback_data="setsize_curto")],
+            [InlineKeyboardButton("📝 Médio", callback_data="setsize_medio")],
+            [InlineKeyboardButton("📜 Longo", callback_data="setsize_longo")],
+            [InlineKeyboardButton("📖 Gigante", callback_data="setsize_gigante")]
+        ]
+        await query.edit_message_text("📏 Escolha o tamanho:", reply_markup=InlineKeyboardMarkup(buttons))
+
     elif query.data.startswith("setstyle_"):
         style = query.data.replace("setstyle_", "")
         config["style"] = style
         save_config(config)
         await query.edit_message_text(f"✅ Estilo alterado para {style}")
+
+    elif query.data.startswith("setsize_"):
+        size = query.data.replace("setsize_", "")
+        config["text_size"] = size
+        save_config(config)
+        await query.edit_message_text(f"✅ Tamanho alterado para {size}")
 
     elif query.data == "enable":
         config["enabled"] = True
@@ -181,6 +194,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Canais: {len(config['channels'])}\n"
             f"Intervalo: {config['interval']}h\n"
             f"Estilo: {config['style']}\n"
+            f"Tamanho: {config['text_size']}\n"
             f"Status: {status}"
         )
 
