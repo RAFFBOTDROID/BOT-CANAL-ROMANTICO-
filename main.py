@@ -72,31 +72,38 @@ async def gerar_post(style, size):
     prompt = random.choice(PROMPT_STYLES.get(style, PROMPT_STYLES["romantico"]))
     max_tokens = TEXT_LIMITS.get(size, 420)
 
-    try:
-        response = client.chat.completions.create(
-            model="llama3-70b-8192",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Você escreve textos 100% ORIGINAIS, profundos, "
-                        "emocionantes, poéticos e marcantes. "
-                        "NUNCA use frases prontas, clichês repetidos ou textos comuns. "
-                        "Cada resposta deve parecer uma carta real, intensa e única. "
-                        "Nunca escreva textos genéricos ou robóticos."
-                    )
-                },
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.97,
-            max_tokens=max_tokens
-        )
+    MODELS_PRIORITY = [
+        "llama-3.1-70b-versatile",
+        "llama-3.1-8b-instant"
+    ]
 
-        return response.choices[0].message.content.strip()
+    for model in MODELS_PRIORITY:
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Você escreve textos 100% ORIGINAIS, profundos, "
+                            "emocionantes, poéticos e marcantes. "
+                            "NUNCA use frases prontas, clichês repetidos ou textos comuns. "
+                            "Cada resposta deve parecer uma carta real, intensa e única. "
+                            "Nunca escreva textos genéricos ou robóticos."
+                        )
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.97,
+                max_tokens=max_tokens
+            )
 
-    except Exception as e:
-        print("❌ ERRO GROQ:", e)
-        return "⚠️ IA indisponível. Tentando novamente na próxima postagem."
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            print(f"❌ ERRO GROQ ({model}):", e)
+
+    return "⚠️ IA indisponível no momento. Tentando novamente na próxima postagem."
 
 # ===== POSTAGEM =====
 async def postar(app: Application):
