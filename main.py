@@ -5,11 +5,15 @@ import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 from groq import Groq
 
 # ===== ENV =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROQ_KEY = os.getenv("GROQ_API_KEY")
+
+if not BOT_TOKEN or not GROQ_KEY:
+    raise ValueError("⚠️ BOT_TOKEN ou GROQ_API_KEY não configurados nas variáveis de ambiente.")
 
 client = Groq(api_key=GROQ_KEY)
 
@@ -23,9 +27,10 @@ DEFAULT_CONFIG = {
     "text_size": "medio"
 }
 
+# ===== CARREGAR CONFIG =====
 if not os.path.exists(CONFIG_FILE):
     with open(CONFIG_FILE, "w") as f:
-        json.dump(DEFAULT_CONFIG, f)
+        json.dump(DEFAULT_CONFIG, f, indent=4)
 
 def load_config():
     with open(CONFIG_FILE, "r") as f:
@@ -51,7 +56,7 @@ PROMPT_STYLES = {
     ]
 }
 
-# ===== CONTROLE TAMANHO REAL =====
+# ===== TAMANHO TEXTO =====
 TEXT_LIMITS = {
     "curto": 140,
     "medio": 220,
@@ -68,17 +73,14 @@ async def gerar_post(style, size):
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Gere UM ÚNICO TEXTO curto, em UMA ÚNICA ESTROFE. "
-                        "O TEXTO DEVE TER começo, meio e fim. "
-                        "Finalize a ideia completamente. "
-                        "Não use clichês repetidos. "
-                        "Não quebre linhas. "
-                        "Parecer humano, intenso e natural."
-                    )
-                },
+                {"role": "system", "content": (
+                    "Gere UM ÚNICO TEXTO curto, em UMA ÚNICA ESTROFE. "
+                    "O TEXTO DEVE TER começo, meio e fim. "
+                    "Finalize a ideia completamente. "
+                    "Não use clichês repetidos. "
+                    "Não quebre linhas. "
+                    "Parecer humano, intenso e natural."
+                )},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.9,
@@ -92,7 +94,6 @@ async def gerar_post(style, size):
         if len(texto) > char_limit:
             texto = texto[:char_limit].rsplit(" ", 1)[0] + "."
 
-        # ===== GARANTIR FINAL =====
         if not texto.endswith("."):
             texto += "."
 
@@ -128,7 +129,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("⏸ Pausar", callback_data="disable")],
         [InlineKeyboardButton("📊 Status", callback_data="status")]
     ]
-
     await update.message.reply_text(
         "💘 BOT ROMÂNTICO IA\n\nTextos curtos, intensos e completos",
         reply_markup=InlineKeyboardMarkup(keyboard)
@@ -215,13 +215,16 @@ async def add_canal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ Canal adicionado: {canal}")
 
 async def intervalo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    horas = int(context.args[0])
-    config = load_config()
-    config["interval"] = horas
-    save_config(config)
+    try:
+        horas = int(context.args[0])
+        config = load_config()
+        config["interval"] = horas
+        save_config(config)
 
-    scheduler.reschedule_job("post_job", trigger="interval", hours=horas)
-    await update.message.reply_text(f"⏰ Intervalo alterado para {horas}h")
+        scheduler.reschedule_job("post_job", trigger=IntervalTrigger(hours=horas))
+        await update.message.reply_text(f"⏰ Intervalo alterado para {horas}h")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Erro: {e}")
 
 # ===== APP =====
 app = Application.builder().token(BOT_TOKEN).build()
@@ -235,12 +238,16 @@ app.add_handler(CallbackQueryHandler(menu_handler))
 scheduler = AsyncIOScheduler()
 
 async def iniciar_scheduler():
-    scheduler.add_job(postar, "interval", hours=2, id="post_job", args=[app])
+    # Wrapper async para garantir compatibilidade
+    async def job_wrapper():
+        await postar(app)
+
+    config = load_config()
+    scheduler.add_job(job_wrapper, trigger=IntervalTrigger(hours=config["interval"]), id="post_job")
     scheduler.start()
 
-async def main():
-    await iniciar_scheduler()
-    await app.run_polling()
-
+# ===== MAIN =====
 if __name__ == "__main__":
-    asyncio.run(main())
+    import asyncio
+    asyncio.run(iniciar_scheduler())
+    app.run_polling()
