@@ -90,7 +90,6 @@ async def gerar_post(style, size):
         texto = response.choices[0].message.content.strip()
         texto = texto.replace("\n", " ").replace("  ", " ")
 
-        # ===== CORTAR SE PASSAR DO LIMITE =====
         if len(texto) > char_limit:
             texto = texto[:char_limit].rsplit(" ", 1)[0] + "."
 
@@ -238,16 +237,13 @@ app.add_handler(CallbackQueryHandler(menu_handler))
 scheduler = AsyncIOScheduler()
 
 async def iniciar_scheduler():
-    # Wrapper async para garantir compatibilidade
     async def job_wrapper():
         await postar(app)
-
     config = load_config()
     scheduler.add_job(job_wrapper, trigger=IntervalTrigger(hours=config["interval"]), id="post_job")
     scheduler.start()
 
 # ===== MAIN =====
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(iniciar_scheduler())
     app.run_polling()
