@@ -1,16 +1,15 @@
 import os
 import json
+import openai
 import random
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from openai import OpenAI
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from apscheduler.schedulers.background import BackgroundScheduler
 
-# ===== ENV =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_KEY = os.getenv("OPENAI_KEY")
 
-client = OpenAI(api_key=OPENAI_KEY)
+openai.api_key = OPENAI_KEY
 
 CONFIG_FILE = "config.json"
 
@@ -56,23 +55,20 @@ PROMPT_STYLES = {
     ]
 }
 
-# ===== IA =====
 async def gerar_post(style):
     prompt = random.choice(PROMPT_STYLES.get(style, PROMPT_STYLES["romantico"]))
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
+    resposta = openai.ChatCompletion.create(
+        model="gpt-4",
         messages=[
-            {"role": "system", "content": "Você escreve mensagens românticas bonitas, emocionantes e naturais."},
+            {"role": "system", "content": "Você escreve mensagens românticas bonitas e emocionantes."},
             {"role": "user", "content": prompt}
-        ],
-        max_tokens=120
+        ]
     )
 
-    return response.choices[0].message.content.strip()
+    return resposta.choices[0].message.content.strip()
 
-# ===== AUTO POST =====
-async def postar(app: Application):
+async def postar():
     config = load_config()
     if not config["enabled"]:
         return
@@ -83,7 +79,9 @@ async def postar(app: Application):
             await app.bot.send_message(chat_id=canal, text=f"💖 {texto}")
             print(f"✅ Post enviado para {canal}")
         except Exception as e:
-            print(f"❌ Erro em {canal}: {e}")
+            print(f"❌ Erro em {canal}:", e)
+
+app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 # ===== MENU =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -95,11 +93,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("⏸ Pausar", callback_data="disable")],
         [InlineKeyboardButton("📊 Status", callback_data="status")]
     ]
-
-    await update.message.reply_text(
-        "💘 MENU DO BOT ROMÂNTICO MULTICANAL",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await update.message.reply_text("💘 MENU DO BOT ROMÂNTICO", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -107,11 +101,11 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     config = load_config()
 
     if query.data == "channels":
-        canais = "\n".join(config["channels"]) if config["channels"] else "Nenhum canal"
-        await query.edit_message_text(f"📢 Canais:\n{canais}\n\nUse /addcanal @canal")
+        texto = "📢 Canais atuais:\n" + "\n".join(config["channels"]) if config["channels"] else "Nenhum canal"
+        await query.edit_message_text(texto + "\n\nUse /addcanal @canal")
 
     elif query.data == "interval":
-        await query.edit_message_text(f"⏰ Intervalo atual: {config['interval']}h\nUse /intervalo 2")
+        await query.edit_message_text(f"⏰ Intervalo atual: {config['interval']} horas\nUse /intervalo 2")
 
     elif query.data == "style":
         buttons = [
@@ -120,7 +114,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("😈 Sensual", callback_data="setstyle_sensual")],
             [InlineKeyboardButton("🖤 Dark", callback_data="setstyle_dark")]
         ]
-        await query.edit_message_text("🎨 Escolha estilo:", reply_markup=InlineKeyboardMarkup(buttons))
+        await query.edit_message_text("🎨 Escolha o estilo:", reply_markup=InlineKeyboardMarkup(buttons))
 
     elif query.data.startswith("setstyle_"):
         style = query.data.replace("setstyle_", "")
@@ -131,7 +125,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "enable":
         config["enabled"] = True
         save_config(config)
-        await query.edit_message_text("▶️ Autopost ATIVADO")
+        await query.edit_message_text("▶️ Autopost LIGADO")
 
     elif query.data == "disable":
         config["enabled"] = False
@@ -148,7 +142,7 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Status: {status}"
         )
 
-# ===== COMMANDS =====
+# ===== COMANDOS =====
 async def add_canal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("Use: /addcanal @canal")
@@ -175,18 +169,15 @@ async def intervalo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     scheduler.reschedule_job("post_job", trigger="interval", hours=horas)
     await update.message.reply_text(f"⏰ Intervalo alterado para {horas} horas")
 
-# ===== APP =====
-app = Application.builder().token(BOT_TOKEN).build()
+# ===== SCHEDULER =====
+scheduler = BackgroundScheduler()
+scheduler.add_job(postar, "interval", hours=3, id="post_job")
+scheduler.start()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("addcanal", add_canal))
 app.add_handler(CommandHandler("intervalo", intervalo))
 app.add_handler(CallbackQueryHandler(menu_handler))
 
-# ===== SCHEDULER =====
-scheduler = AsyncIOScheduler()
-scheduler.add_job(postar, "interval", hours=3, id="post_job", args=[app])
-scheduler.start()
-
-print("💘 BOT ROMÂNTICO MULTICANAL RODANDO NO KOYEB...")
+print("💘 Bot multicanal rodando no Koyeb...")
 app.run_polling()
