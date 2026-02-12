@@ -1,10 +1,10 @@
-# Usar imagem Python 3.11 completa (não slim) para evitar problemas de build com Groq
+# Usar imagem Python 3.11 completa
 FROM python:3.11
 
 # Diretório de trabalho
 WORKDIR /app
 
-# Atualizar pip e instalar dependências do sistema necessárias
+# Instalar dependências do sistema mínimas
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -13,9 +13,9 @@ RUN apt-get update && apt-get install -y \
 # Copiar requirements
 COPY requirements.txt .
 
-# Atualizar pip e instalar pacotes Python
+# Atualizar pip e instalar pacotes só com binários pré-compilados
 RUN pip install --upgrade pip setuptools wheel
-RUN pip install -r requirements.txt
+RUN pip install --only-binary=:all: -r requirements.txt
 
 # Copiar todo o código do bot
 COPY . .
